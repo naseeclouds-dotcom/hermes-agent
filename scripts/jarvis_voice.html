@@ -1,0 +1,116 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Jarvis Voice Bridge</title>
+    <style>
+        body {
+            background: #0a0a0a;
+            color: #00ffcc;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+        }
+        #status {
+            font-size: 24px;
+            margin-bottom: 20px;
+            text-shadow: 0 0 10px #00ffcc;
+        }
+        .circle {
+            width: 150px;
+            height: 150px;
+            border: 5px solid #00ffcc;
+            border-radius: 50%;
+            box-shadow: 0 0 20px #00ffcc;
+            animation: pulse 2s infinite;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 0.8; }
+            50% { transform: scale(1.1); opacity: 1; box-shadow: 0 0 40px #00ffcc; }
+            100% { transform: scale(1); opacity: 0.8; }
+        }
+        #command-display {
+            margin-top: 30px;
+            font-style: italic;
+            color: #888;
+        }
+    </style>
+</head>
+<body>
+    <div id="status">Waiting for Wake Word...</div>
+    <div class="circle">Jarvis</div>
+    <div id="command-display">"Hey Jarvis"</div>
+
+    <script>
+        const statusDiv = document.getElementById('status');
+        const cmdDiv = document.getElementById('command-display');
+        
+        const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+        recognition.continuous = true;
+        recognition.interimResults = false;
+        recognition.lang = 'en-US';
+
+        const synth = window.speechSynthesis;
+
+        function speak(text) {
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.rate = 1.0;
+            utterance.pitch = 0.9; // Slightly lower for Jarvis feel
+            synth.speak(utterance);
+        }
+
+        recognition.onresult = (event) => {
+            const result = event.results[event.results.length - 1][0].transcript.toLowerCase();
+            console.log("Heard:", result);
+
+            if (result.includes("hey jarvis") || result.includes("jarvis")) {
+                statusDiv.innerText = "Listening...";
+                speak("Hi bro, I'm here, any help needed?");
+                
+                // Now we wait for the actual command in the next result
+                // We'll use a flag to know we are in "Command Mode"
+                window.isListeningForCommand = true;
+            } else if (window.isListeningForCommand) {
+                window.isListeningForCommand = false;
+                statusDiv.innerText = "Processing...";
+                cmdDiv.innerText = `Command: ${result}`;
+                
+                // Send to local server
+                fetch('http://localhost:8080', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ command: result })
+                })
+                .then(res => {
+                    statusDiv.innerText = "Waiting for Wake Word...";
+                    cmdDiv.innerText = '"Hey Jarvis"';
+                })
+                .catch(err => {
+                    console.error("Error:", err);
+                    statusDiv.innerText = "Error connecting to server";
+                });
+            }
+        };
+
+        recognition.onend = () => {
+            recognition.start(); // Keep listening
+        };
+
+        // Start listening on load
+        window.onload = () => {
+            recognition.start();
+            console.log("Jarvis Voice Bridge Active");
+        };
+    </script>
+</body>
+</html>
